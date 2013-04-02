@@ -16,7 +16,7 @@ Parameter app;
 char *filename;
 int blocksize = 32;
 bool verbose = false;
-bool trial = false;
+bool trial = true;
 
 struct vector_sort { 
     csr_matrix * data;
@@ -75,8 +75,9 @@ int main(int argc, char* argv[]){
 			cerr << "Changing working directory to " << app.wdir << endl;
 			int r = chdir(app.wdir.c_str());
 		}
+        filename = (char *)app.matrixFile.c_str();
 
-        ifstream inf(app.matrixFile.c_str());
+        ifstream inf(filename);
         vector<uint32_t> tempperm;
         MMFormatInput f(inf, tempperm);
         f.readIt();

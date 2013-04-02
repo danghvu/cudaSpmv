@@ -45,8 +45,8 @@ struct Result {
     }
 };
 
-const uint32_t FORMATS_LEN = 10;
-const uint32_t LOOK_AHEAD = 10;
+const uint32_t FORMATS_LEN = 9;
+const uint32_t LOOK_AHEAD = 9;
 const uint32_t NTIMES = 10;
 const string FORMATS[] = { // matrix_factory::BIT_BLOCK,  
                             matrix_factory::SLICED_COO_256,	
@@ -492,11 +492,11 @@ void CutOffFinder<T>::writeCache(char* output_path){
         bm->set_num_cols(mat.num_cols);
         bm->set_num_rows(output.startRows[i+1] - output.startRows[i]);
 
-        //cerr << "Building cache for " << output.formats[i] << endl;
+        cerr << "Building cache for " << output.formats[i] << endl;
         bm->readMatrix(mf);
         stringstream cacheOutput;
         cacheOutput << output_path << "-" << currentRow << bm->getCacheName();
-        //cerr << "Writing cache to " << cacheOutput.str() << endl;
+        cerr << "Writing cache to " << cacheOutput.str() << endl;
         ofstream out(cacheOutput.str().c_str());
         out.exceptions(ios_base::failbit | ios_base::badbit);
         bm->buildCache(out);

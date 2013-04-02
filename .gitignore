@@ -1,5 +1,6 @@
 #ctags
 tags
+tests
 
 # Compiled Object files
 *.slo

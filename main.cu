@@ -187,6 +187,7 @@ void execute(){
 		}
         cudaThreadSynchronize();
         checkCUDAError("kernel call");
+        swap(v,r);
 	}
     double totalTime = overall.stop(); 
 
@@ -221,7 +222,7 @@ void execute(){
 		 << endl;
 	
 	thrust::device_vector<T> *dr = &dv[1];
-    if (times == 0) dr = &dv[0];
+    if (times %2==0) dr = &dv[0];
 
 	hv.assign(dr->begin(), dr->end());
 	if(print){
@@ -289,6 +290,9 @@ int main(int argc, char* argv[]){
 			cerr << "Changing working directory to " << app.wdir << endl;
 			int r = chdir(app.wdir.c_str());
 		}
+
+        matrix_path = app.matrixFile;
+        readInfo();
         if (app.datatype == "float")
             execute<float>();
         else

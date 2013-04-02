@@ -1,4 +1,4 @@
-COMMON = -O2 -arch=sm_30 --ptxas-options="" matrix/MatrixInput.cpp parameters.cpp params_parser.cpp
+COMMON = -g -O2 -arch=sm_30 --ptxas-options="" matrix/MatrixInput.cpp parameters.cpp params_parser.cpp
 
 all: spmv prep
 

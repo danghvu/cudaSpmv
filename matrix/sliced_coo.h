@@ -132,7 +132,7 @@ void SlicedCoo<T, LANE_SIZE>::readMatrix(MatrixInput &in, vector<uint32_t> &perm
                 slice.push_back(make_pair(c, make_pair( static_cast<uint16_t>(i % numRowsPerSlice() ), v  )));
             }
         }
-        sort(slice.begin(), slice.end());
+        std::sort(slice.begin(), slice.end());
 
         offsets.push_back(col.size());
         for (uint32_t j = 0; j < slice.size(); j++) {

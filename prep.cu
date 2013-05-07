@@ -1,8 +1,9 @@
+/* vim: set ft=cpp: */
 #include <stdint.h>
 #include "util/data_input_stream.h"
 #include "util/data_output_stream.h"
 #include "matrix/MatrixInput.h"
-#include "CutOffFinder.h"
+#include "partition.h"
 #include "util/timer.h"
 
 #include <iostream>
@@ -14,8 +15,8 @@ using namespace std;
 Parameter app;
 
 string filename;
-int seed=0, blocksize = 32;
-bool verbose = false, trial = false, sortcol = false, sortrow = false;
+int blocksize = 32;
+bool verbose = false, sortcol = false, sortrow = false;
 
 struct vector_sort { 
     csr_matrix * data;
@@ -54,11 +55,10 @@ void preprocessing ( MMFormatInput &f ) {
 
     double median = f.getNz(f.perm[f.getNumRows()/2]);
 
-    cout << "Max: " << max << ", Min:" << min << ", Median: " << median << ", Mean:" << mean << ", Std:" << std << endl;
-
-    double alpha;
-    if (mean < median) alpha = std::min(median, mean * 2); //combine more row
-    else alpha = std::max(median, mean / 2); // combine less row
+    
+    double theta;
+    if (mean < median) theta = std::min(median, mean * 2); //combine more row
+    else theta = std::max(median, mean / 2); // combine less row
     // if small variance do not sort
     if (max - min > 256 || sortrow)  {
         cout << "Decide to sort!" << endl;
@@ -66,36 +66,22 @@ void preprocessing ( MMFormatInput &f ) {
         for (int i=0; i<maxSize; i++) f.perm[i] = i;
     }
 
-    cout << alpha << endl;
+    cout << "Max: " << max << ", Min:" << min << ", Median: " << median << ", Mean:" << mean << ", Std:" << std << ", Theta: " << theta << endl;
 
-    if (trial == true) {
-        CutOffFinder<T> cof(f, sortcol);
-        Timer timeex;
-        timeex.start();
-        cof.execute_trial(verbose);
-        cout << "Spending " << timeex.stop() << "s in finding cutoff" << endl;
-        cof.printResult(filename);
-        cof.writeCache(filename);
-    } 
-    else  {
-        CutOffFinder<T> cof(f, sortcol);
-        Timer timeex;
-        timeex.start();
-        cof.alpha = alpha;
-        cof.execute(verbose);
-        cout << "Spending " << timeex.stop() << "s in finding cutoff" << endl;
-        cof.printResult(filename);
-        cof.writeCache(filename);
-    }
+    Timer timer;
+    timer.start();
+    CutOffFinder<T> cof(f, sortcol);
+    cof.theta = theta;
+    cof.execute(verbose);
+    cout << "Spending " << timer.stop() << "s in finding cutoff" << endl;
+    cof.printResult(filename);
+    cof.writeCache(filename);
 }
 
 int main(int argc, char* argv[]){
     try {
         Params param(argc, argv);
         app.init(param);
-
-        param.getParamOptional("seed", &seed);
-		srand(seed);
 
         param.getParamOptional("sortcol", &sortcol);
         param.getParamOptional("sortrow", &sortrow);
@@ -105,8 +91,6 @@ int main(int argc, char* argv[]){
 			int r = chdir(app.wdir.c_str());
 		}
         filename = getFileName(app.matrixFile);
-        cout << filename << endl;
-
         ifstream inf(app.matrixFile.c_str());
         vector<uint32_t> tempperm;
         MMFormatInput f(inf, tempperm);

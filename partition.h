@@ -1,15 +1,6 @@
 #ifndef CUTOFFFINDER_H
 #define CUTOFFFINDER_H
 
-#include "matrix/MatrixInput.h"
-#include "BalancedMatrix.h" 
-#include "matrix/factory.h" 
-
-#include <thrust/device_vector.h>
-
-#include <cuda_runtime_api.h>
-#include <sys/time.h>
-
 #include <iostream>
 #include <numeric>
 #include <stdexcept>
@@ -17,12 +8,38 @@
 #include <stdint.h>
 #include <numeric>
 #include <queue>
+#include <thrust/device_vector.h>
+#include <cuda_runtime_api.h>
+#include <sys/time.h>
+
+
 #include "util/timer.h"
 
-
-#define gnzps(a,b,c) ( (a) / (b) / 1e9*(c) )
+#include "matrix/matrix_input.h"
+#include "matrix/factory.h" 
 
 using namespace std;
+
+struct Slice{
+    uint32_t sum;
+    uint32_t num_rows;
+    std::vector<uint32_t> row_start;
+
+    Slice() : sum(0), num_rows(0){
+        row_start.clear();
+    }
+
+    void addRow(uint32_t index, uint32_t weight){
+        sum += weight;
+        num_rows++;
+        row_start.push_back(index);
+    }
+
+    bool operator()(const Slice* lhs, const Slice* rhs){
+        return rhs->sum < lhs->sum;
+    }
+};
+
 
 struct Result {
     string format;
@@ -33,14 +50,12 @@ struct Result {
 
     double time;
     uint64_t nnz;
-    double gnzps;
     uint32_t ntimes;
 
     string toString() {
         ostringstream ostr;
         ostr << format << " - row " << startingRow << ", " << numRows
-            << " rows, " << rowsPerSlice << " rows per slice, " << gnzps
-            << " gnz/s, " << time << " s, " << nnz << " nnz, avg d:" << avgDist;
+             << " rows, " << rowsPerSlice << " rows per slice, " << nnz << " nnz, avg d:" << avgDist;
         return ostr.str();
     }
 };

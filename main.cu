@@ -6,24 +6,26 @@
 #include <sstream>
 #include <ctime>
 #include <iomanip>
+#include <sys/stat.h>
+
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include "matrix/MatrixInput.h"
+
 #include "util/data_input_stream.h"
 #include "util/data_output_stream.h"
 #include "util/timer.h"
+#include "util/parameters.h"
+
+#include "matrix/matrix_input.h"
 #include "matrix/factory.h"
-#include "util/vector_gen.h"
-#include <sys/stat.h>
-#include "parameters.h"
 
 #define DEFAULT_VECTOR_VALUE 1
 
 using namespace std;
 Parameter app;
 
-uint32_t block_size = 32, times = 1;
-string matrix_path, vector_path, outfile;
+uint32_t times = 1;
+string outfile;
 vector<string> formats;
 vector<uint32_t> start_rows, perm, revperm;
 uint32_t num_rows, num_cols, cur=0, nnz;
@@ -82,7 +84,7 @@ void print_result( T* v , thrust::host_vector<T> &hv) {
 template <typename T>
 void execute(){
     cudaSetDevice(app.gpu);
-    ifstream f(matrix_path.c_str());
+    ifstream f(app.matrixFile.c_str());
     MMFormatInput matrix_input(f, perm);
 
     num_rows = matrix_input.getNumRows();
@@ -93,9 +95,9 @@ void execute(){
 
     thrust::host_vector<T> hv;
     //read vector
-    if(!vector_path.empty()){
+    if(!app.vectorFile.empty()){
         hv.reserve(max(num_rows,num_cols));
-        readVector(vector_path.c_str(), hv, num_cols);
+        readVector(app.vectorFile.c_str(), hv, num_cols);
     }else{
         hv.resize(max(num_rows,num_cols), DEFAULT_VECTOR_VALUE);
     }
@@ -122,7 +124,7 @@ void execute(){
     for(uint32_t i=0; i<mfh.vec.size(); i++){
         struct stat st_file_info;
         stringstream ss;
-        ss << getFileName(matrix_path) << "-" << start_rows[i] << mfh.vec[i]->getCacheName();
+        ss << getFileName(app.matrixFile) << "-" << start_rows[i] << mfh.vec[i]->getCacheName();
         string s(ss.str());
         if(!rebuild && !stat(s.c_str(), &st_file_info)){
             ifstream inCache(s.c_str());
@@ -239,7 +241,7 @@ void execute(){
 void readInfo() {
     char infopath[255];
 
-    sprintf(infopath, FORMAT_PERM, getFileName(matrix_path).c_str());    
+    sprintf(infopath, FORMAT_PERM, getFileName(app.matrixFile).c_str());    
     ifstream ifs;
     ifs.exceptions ( ifstream::failbit | ifstream::badbit );
 
@@ -258,7 +260,7 @@ void readInfo() {
     for (uint32_t i=0;i<maxdim;i++) 
         revperm[perm[i]] = i;
 
-    sprintf(infopath , FORMAT_OUTPUT, getFileName(matrix_path).c_str());
+    sprintf(infopath , FORMAT_OUTPUT, getFileName(app.matrixFile).c_str());
     if (DEBUG) cout << infopath << endl;
     ifs.open(infopath);
     try {
@@ -299,8 +301,7 @@ int main(int argc, char* argv[]){
             int r = chdir(app.wdir.c_str());
         }
 
-        matrix_path = app.matrixFile;
-        vector_path = app.vectorFile;
+        app.vectorFile = app.vectorFile;
         readInfo();
         if (app.datatype == "float")
             execute<float>();

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <string>
-#include "MatrixInput.h"
+#include "matrix_input.h"
 
 
 template <typename T>

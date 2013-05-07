@@ -1,15 +1,15 @@
 /* vim: set ft=cpp: */
 #include <stdint.h>
-#include "util/data_input_stream.h"
-#include "util/data_output_stream.h"
-#include "matrix/MatrixInput.h"
-#include "partition.h"
-#include "util/timer.h"
-
 #include <iostream>
 #include <fstream>
 #include <algorithm>
-#include "parameters.h"
+
+#include "util/data_input_stream.h"
+#include "util/data_output_stream.h"
+#include "util/timer.h"
+#include "util/parameters.h"
+#include "matrix/matrix_input.h"
+#include "partition.h"
 
 using namespace std;
 Parameter app;

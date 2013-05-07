@@ -1,12 +1,13 @@
 #ifndef __MATRIX_INPUT_H__
 #define __MATRIX_INPUT_H__
 
-#include "MatrixInput.h"
 #include <string.h>
 #include <stdexcept>
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
+
+#include "matrix_input.h"
 
 using namespace std;
 

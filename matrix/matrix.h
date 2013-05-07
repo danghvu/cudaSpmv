@@ -10,7 +10,7 @@
 template <typename T>
 class Matrix{
     public:
-        Matrix() : num_rows(0), num_cols(0){};
+        Matrix() : num_rows(0), num_cols(0), sort(false){};
         Matrix(uint32_t num_rows, uint32_t num_cols) :
             num_rows(num_rows), num_cols(num_cols){};
         virtual ~Matrix(){};
@@ -21,14 +21,16 @@ class Matrix{
         virtual void set_num_rows(uint32_t nr){num_rows = nr;};
         virtual void set_num_cols(uint32_t nc){num_cols = nc;};
 
-        virtual void readMatrix(MatrixInput &in) = 0;
+        virtual void readMatrix(MatrixInput &in, std::vector<uint32_t> &new_perm) = 0;
         virtual void readCache(std::istream &in) = 0;
         virtual void buildCache(std::ostream &out) = 0;
         virtual std::string getCacheName() = 0;
-        virtual void multiply(const T *v, T *r) = 0;
+        virtual void multiply(const T *v, T *r, cudaStream_t t=0) = 0;
         virtual uint64_t memoryUsage() = 0;
         virtual uint32_t granularity() = 0;
         virtual uint32_t nonZeroes() = 0;
+
+        void set_sort_col(bool sort){ this->sort = sort; };
 
         void setStat( double v ) { ss = v; };
         double getStat() { return ss; };
@@ -39,6 +41,7 @@ class Matrix{
         uint32_t num_rows;
         uint32_t num_cols;
         double ss;
+        bool sort;
 
 };
 

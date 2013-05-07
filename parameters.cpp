@@ -13,14 +13,18 @@
 #include <sstream>
 
 Parameter::Parameter() {
+    gpu = 0;
 }
 
 void Parameter::init(Params &params){
 	try{
 		params.getParam("matrix", &matrixFile);
-		params.getParam("wdir", &wdir);
         params.getParam("datatype", &datatype);
-        params.getParam("gpu", &gpu);
+
+        params.getParamOptional("vector", &vectorFile);
+		params.getParamOptional("wdir", &wdir);
+        params.getParamOptional("gpu", &gpu);
+
 		if(datatype!="float" && datatype!="double"){
 			throw std::invalid_argument("Unable to find data type");
 		}

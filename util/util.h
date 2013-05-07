@@ -10,9 +10,9 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
 
-
-static const uint32_t SHARED_MEMORY_SIZE = 48*1024;
+static const uint32_t SHARED_MEMORY_SIZE = 48 * 1024;
 static const uint32_t WARP_SIZE = 32;
 
 inline void checkCUDAError(std::string msg)
@@ -35,6 +35,12 @@ uint32_t getNumMultiprocessors(){
         cudaGetDeviceProperties(&deviceProp, id);
 //		return thrust::detail::device::cuda::arch::num_multiprocessors();
     return deviceProp.multiProcessorCount;
+}
+
+std::string getFileName(const std::string &filePath) {
+    size_t found;
+    found=filePath.find_last_of("/\\");
+    return filePath.substr(found+1);
 }
 
 

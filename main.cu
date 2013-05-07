@@ -21,19 +21,13 @@
 using namespace std;
 Parameter app;
 
-uint32_t block_size = 32;
-uint32_t times = 1;
+uint32_t block_size = 32, times = 1;
 uint64_t seed = 1;
-int gpu = 0;
-string matrix_path;
-string vector_path;
+string matrix_path, vector_path, outfile;
 vector<string> formats;
-vector<uint32_t> start_rows;
-vector<uint32_t> perm, revperm;
-bool rebuild = false;
-bool print = false;
-bool writeMatrixParts = false;
-bool DEBUG = false;
+vector<uint32_t> start_rows, perm, revperm;
+uint32_t num_rows, num_cols, cur=0, nnz;
+bool rebuild = false, writeMatrixParts = false, DEBUG = false;
 
 template <typename T>
 void readVector(const char *file, thrust::host_vector<T> &v, uint32_t len){
@@ -41,13 +35,12 @@ void readVector(const char *file, thrust::host_vector<T> &v, uint32_t len){
     in.exceptions ( ifstream::failbit | ifstream::badbit );
     try {
         in.open(file);
-        in >> setbase(16);
         for (int i=0;i<len;i++) {
             T t; in >> t;
             v.push_back(t);
         }
     }catch(ifstream::failure e) {
-        cerr << "Exception opening/reading: " << file << endl;
+        cout << "Exception opening/reading: " << file << endl;
         throw e;
     }
     in.close();
@@ -76,8 +69,19 @@ void skipLines(MMFormatInput &in, uint32_t lines){
 }
 
 template <typename T>
+void print_result( T* v , thrust::host_vector<T> &hv) {
+    thrust::device_ptr<T> d_ptr =  thrust::device_pointer_cast(v);
+    thrust::copy(d_ptr, d_ptr+num_rows, hv.begin());
+    ofstream out(outfile.c_str());
+    for(uint32_t i=0; i<num_rows; i++){
+        out << hv[revperm[i]] << endl;
+    }
+    out.close();
+}
+
+template <typename T>
 void execute(){
-	uint32_t num_rows, num_cols, cur=0, nnz;
+    cudaSetDevice(app.gpu);
     ifstream f(matrix_path.c_str());
 	MMFormatInput matrix_input(f, perm);
 
@@ -85,11 +89,11 @@ void execute(){
     num_cols = matrix_input.getNumCols();
     nnz = matrix_input.getNNz();
 
-    cerr << num_rows << " " << num_cols << " " << nnz << " " << static_cast<double>(nnz)/num_rows << endl;
+    cout << num_rows << " " << num_cols << " " << nnz << " " << static_cast<double>(nnz)/num_rows << endl;
 	
+    thrust::host_vector<T> hv;
 	//read vector
-	thrust::host_vector<T> hv;
-	if(vector_path != ""){
+	if(!vector_path.empty()){
 		hv.reserve(max(num_rows,num_cols));
 		readVector(vector_path.c_str(), hv, num_cols);
 	}else{
@@ -97,7 +101,7 @@ void execute(){
         hv.resize(max(num_rows,num_cols), DEFAULT_VECTOR_VALUE);
 	}
 	
-	if (DEBUG) cerr << "Vector storage: " << hv.size() * sizeof(T) / 1024.0 / 1024.0 << " MB" << endl;
+	if (DEBUG) cout << "Vector storage: " << hv.size() * sizeof(T) / 1024.0 / 1024.0 << " MB" << endl;
 	
 	MatrixFormatsHolder<T> mfh; 
 	for(uint32_t i=0; i<formats.size(); i++){
@@ -111,7 +115,7 @@ void execute(){
 		mfh.vec.push_back(matrix);			
 	}
 
-	if (cur >= num_cols) 
+	if (cur >= num_rows) 
         throw ios::failure("Sum of rows > number of rows!");
 
 	mfh.vec.back()->set_num_rows(num_rows - cur);
@@ -119,21 +123,21 @@ void execute(){
 	for(uint32_t i=0; i<mfh.vec.size(); i++){
 		struct stat st_file_info;
 		stringstream ss;
-		ss << matrix_path << "-" << start_rows[i] << mfh.vec[i]->getCacheName();
+		ss << getFileName(matrix_path) << "-" << start_rows[i] << mfh.vec[i]->getCacheName();
 		string s(ss.str());
 		if(!rebuild && !stat(s.c_str(), &st_file_info)){
 			ifstream inCache(s.c_str());
-			if (DEBUG) cerr<<"Reading cache from row " << start_rows[i] << endl;
+			if (DEBUG) cout<<"Reading cache from row " << start_rows[i] << endl;
 			mfh.vec[i]->readCache(inCache);
 			inCache.close();
 			skip += mfh.vec[i]->get_num_rows();
 		}else{
 			skipLines(matrix_input, skip);
 			skip = 0;
-			if (DEBUG) cerr << "Reading matrix from row " << start_rows[i] << endl;
-			mfh.vec[i]->readMatrix(matrix_input);
+			if (DEBUG) cout << "Reading matrix from row " << start_rows[i] << endl;
+			mfh.vec[i]->readMatrix(matrix_input, perm);
 			ofstream outCache(s.c_str());
-			if (DEBUG) cerr << "Building cache... " << endl;
+			if (DEBUG) cout << "Building cache... " << endl;
 			mfh.vec[i]->buildCache(outCache);
 			outCache.close();
 		}
@@ -154,9 +158,9 @@ void execute(){
 	size_t free, dvTotal;
 	cudaMemGetInfo	(&free,&dvTotal);
     if (DEBUG){
-        cerr << "Used device memory: " << (dvTotal-free)/1024.0/1024.0 << "MB" <<  endl;
-        cerr << "Free device memory: " << free/1024.0/1024.0 << "MB" << endl;
-        cerr << "Total device memory: " << dvTotal/1024.0/1024.0 << "MB" <<  endl;
+        cout << "Used device memory: " << (dvTotal-free)/1024.0/1024.0 << "MB" <<  endl;
+        cout << "Free device memory: " << free/1024.0/1024.0 << "MB" << endl;
+        cout << "Total device memory: " << dvTotal/1024.0/1024.0 << "MB" <<  endl;
     }		
 
 	double parts_time[mfh.vec.size()];
@@ -169,6 +173,12 @@ void execute(){
     T* v = thrust::raw_pointer_cast(&dv[0][0]);
 	T* r = thrust::raw_pointer_cast(&dv[1][0]);
 
+    cudaStream_t streams[mfh.vec.size()];
+    for (int j=0; j<mfh.vec.size(); j++) {
+        cudaStreamCreate(&streams[j]);
+    }
+    
+
     Timer overall, part;
     overall.start();
 	for(uint32_t i=0; i<times; i++){
@@ -176,7 +186,7 @@ void execute(){
 		for(uint32_t j=0; j<mfh.vec.size(); j++){
             if (DEBUG) part.start();
     		
-            mfh.vec[j]->multiply(v, r+cur_row);
+            mfh.vec[j]->multiply(v, r+cur_row, streams[j]);
 			cur_row += mfh.vec[j]->get_num_rows();
 
             if (DEBUG) {
@@ -185,16 +195,17 @@ void execute(){
                 checkCUDAError("kernel call");
             }
 		}
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         checkCUDAError("kernel call");
-        swap(v,r);
+        swap(v, r);
 	}
+
     double totalTime = overall.stop(); 
 
-	cerr << "Expected/Actual memory usage: " << (total + 2 * hv.size() * sizeof(T) / 1024.0 / 1024.0) << " / " << (dvTotal-free)/1024.0/1024.0 << " MB" << endl;
+	cout << "Expected/Actual memory usage: " << (total + 2 * hv.size() * sizeof(T) / 1024.0 / 1024.0) << " / " << (dvTotal-free)/1024.0/1024.0 << " MB" << endl;
 	stringstream stmp;
 	stmp << sizeof(T)*8 << "b," << times <<"iter";
-	cerr << setw(15) << stmp.str() 
+	cout << setw(15) << stmp.str() 
 		 << setw(15) << "seconds" 
 		 << setw(15) << "nnz" 
 		 << setw(15) << "GFL/s" 
@@ -204,7 +215,7 @@ void execute(){
 
     if (DEBUG)	
 	for(uint32_t j=0; j<mfh.vec.size(); j++){
-		cerr << setw(15) << (formats[j] + ":") 
+		cout << setw(15) << (formats[j] + ":") 
 			 << setw(15) << parts_time[j] 
 			 << setw(15) << mfh.vec[j]->nonZeroes() 
 			 << setw(15) << 2*mfh.vec[j]->nonZeroes()/(parts_time[j]*1000000000)*times 
@@ -213,66 +224,54 @@ void execute(){
 			 << endl;
 	}
 
-	cerr << setw(15) << "Total:"
+	cout << setw(15) << "Total:"
 		 << setw(15) << totalTime 
 		 << setw(15) << nnz 
 		 << setw(15) << nnz*2/(totalTime*1000000000)*times 
 		 << setw(15) << total 
 		 << setw(15) << total*1024*1024/nnz 
 		 << endl;
-	
-	thrust::device_vector<T> *dr = &dv[1];
-    if (times %2==0) dr = &dv[0];
 
-	hv.assign(dr->begin(), dr->end());
-	if(print){
-		for(uint32_t i=0; i<hv.size(); i++){
-			cout << hv[revperm[i]] << endl;
-		}
-	}
+    if (outfile.length() > 0)
+        print_result(v, hv);
 	
 }
 
 void readInfo() {
     char infopath[255];
 
-    sprintf(infopath, FORMAT_PERM, matrix_path.c_str());    
+    sprintf(infopath, FORMAT_PERM, getFileName(matrix_path).c_str());    
     ifstream ifs(infopath);
     DataInputStream permif( ifs );
     permif.readVector( perm );
     uint32_t maxdim = perm.size();
-//    for (int i=0;i<maxdim;i++) perm[i] = i;
     revperm.resize(maxdim);
     for (uint32_t i=0;i<maxdim;i++) {
         revperm[perm[i]] = i;
     }
     ifs.close();
 
-    sprintf(infopath , FORMAT_OUTPUT, matrix_path.c_str());
-    if (DEBUG) cerr << infopath << endl;
+    sprintf(infopath , FORMAT_OUTPUT, getFileName(matrix_path).c_str());
+    if (DEBUG) cout << infopath << endl;
     ifs.open(infopath);
     int nformats;
     ifs >> nformats;
-    if (DEBUG) cerr << "Read " << nformats << endl;
+    if (DEBUG) cout << "Read " << nformats << endl;
     formats.resize(nformats);
     start_rows.resize(nformats);
 
     for (int i=0;i<nformats;i++) { 
         ifs >> formats[i];
-        cerr << formats[i] << " ";
+        cout << formats[i] << " ";
     }
-    cerr << "|| " ;
+    cout << "|| " ;
     for (int i=0;i<nformats;i++) {
         ifs >> start_rows[i];
-        cerr << start_rows[i] << " ";
+        cout << start_rows[i] << " ";
     }
-    cerr << endl;
+    cout << endl;
      
     ifs.close();
-}
-
-void print_usage(char **argv) {
-    cout << "Usage: " << argv[0] << " -m <matrix> -b <blocksize> -n <niteration> [ -r (recache) -w (debug) -s > output ]" << endl;
 }
 
 
@@ -281,17 +280,19 @@ int main(int argc, char* argv[]){
         Params param(argc, argv);
         app.init(param);
 
-        param.getParam("times", &times, true);
-        param.getParam("print", &print, true);
+        param.getParamOptional("times", &times);
+        param.getParamOptional("outfile", &outfile);
+        cout << outfile << endl;
 
 		srand(seed);
 
 		if(!app.wdir.empty()){
-			cerr << "Changing working directory to " << app.wdir << endl;
+			cout << "Changing working directory to " << app.wdir << endl;
 			int r = chdir(app.wdir.c_str());
 		}
 
         matrix_path = app.matrixFile;
+        vector_path = app.vectorFile;
         readInfo();
         if (app.datatype == "float")
             execute<float>();

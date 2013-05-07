@@ -1,10 +1,3 @@
-/*
- * Params.cpp
- *
- *  Created on: Jun 22, 2011
- *      Author: hans
- */
-
 #include "params_parser.h"
 
 Params::Params(uint32_t argc, const char* const* argv) throw (std::invalid_argument){
@@ -55,14 +48,23 @@ void Params::getMxN(const std::string &param, uint32_t *m, uint32_t *n) const th
 }
 
 template <>
-void Params::getParam(const std::string &param, std::string* val, bool optional) const throw(std::invalid_argument){
+void Params::getParam(const std::string &param, std::string* val) const throw(std::invalid_argument){
 	using std::string;
 
 	std::map<string, string>::const_iterator it = paramsMap.find(param);
 	if(it != paramsMap.end()){
 		*val = it->second;
 	} else{
-	    if (!optional) 
-            throw std::invalid_argument(string("Unable to find parameter with name: ").append(param));
+        throw std::invalid_argument(string("Unable to find parameter with name: ").append(param));
+	}
+}
+
+template <>
+void Params::getParamOptional(const std::string &param, std::string* val) {
+	using std::string;
+
+	std::map<string, string>::const_iterator it = paramsMap.find(param);
+	if(it != paramsMap.end()){
+		*val = it->second;
 	}
 }

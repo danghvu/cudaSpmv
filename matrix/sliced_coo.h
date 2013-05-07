@@ -9,7 +9,7 @@
 #include <thrust/device_vector.h>
 #include <sstream>
 #include "matrix.h"
-#include "sliced_coo_kernel.cuh"
+#include "sliced_coo_kernel.h"
 #include "../util/textures.h"
 
 template<typename T, const uint32_t LANE_SIZE>
@@ -23,20 +23,19 @@ public:
     uint32_t numRowsPerSlice(){return NUM_ROWS_PER_SLICE;};
     uint32_t getLaneSize() { return LANE_SIZE; }
 
-    void readMatrix(MatrixInput &in);
+    void readMatrix(MatrixInput &in, vector<uint32_t> &perm);
 	void readCache(std::istream &in);
 	void buildCache(std::ostream &out);
 	std::string getCacheName();
 
 	uint64_t memoryUsage();
-	void multiply(const T *v, T *r);
+	void multiply(const T *v, T *r, cudaStream_t t=0);
 	uint32_t granularity();
 	uint32_t nonZeroes();
 
     void transferToDevice();
 
 private:
-    static const uint32_t SHARED_MEMORY_SIZE = 48*1024;
 	static const uint32_t THREADS_PER_BLOCK = 1024;
 	static const uint32_t NUM_ROWS_PER_SLICE = SHARED_MEMORY_SIZE/sizeof(T)/LANE_SIZE;
 
@@ -107,10 +106,14 @@ std::string SlicedCoo<T, LANE_SIZE>::getCacheName(){
 }
 
 template<typename T, uint32_t LANE_SIZE>
-void SlicedCoo<T, LANE_SIZE>::readMatrix(MatrixInput &in){
+void SlicedCoo<T, LANE_SIZE>::readMatrix(MatrixInput &in, vector<uint32_t> &perm){
 	vector < pair<uint32_t, pair< uint16_t, T > > > slice;
 	uint32_t nz = 0;
     double dist=0,ndist=0;
+    vector<uint32_t> revp(perm.size());
+    for (uint32_t i=0;i<perm.size();i++) {
+        revp[perm[i]] = i;
+    }
     
 	for (uint32_t i = 0; i < this->num_rows;) {
 		uint32_t limit = min(this->num_rows, i + numRowsPerSlice());
@@ -122,6 +125,8 @@ void SlicedCoo<T, LANE_SIZE>::readMatrix(MatrixInput &in){
 			for (uint32_t j = 0; j < temp; j++) {
 				uint32_t c;
 				in >> c;
+                if (this->sort) 
+                    c = revp[c]; 
                 T v;
                 v = (T) in.getValue();
 				slice.push_back(make_pair(c, make_pair( static_cast<uint16_t>(i % numRowsPerSlice() ), v  )));
@@ -151,10 +156,11 @@ void SlicedCoo<T, LANE_SIZE>::readMatrix(MatrixInput &in){
 }
 
 template<typename T, const uint32_t LANE_SIZE>
-void SlicedCoo<T, LANE_SIZE>::multiply(const T *v, T *r){
+void SlicedCoo<T, LANE_SIZE>::multiply(const T *v, T *r, cudaStream_t t){
 //	static const uint32_t NUM_BLOCKS = getNumMultiprocessors();
     bind_x(v);
-    	sliced_coo_kernel_32<T, THREADS_PER_BLOCK, NUM_ROWS_PER_SLICE, LANE_SIZE> <<<divideAndCeil(this->num_rows, NUM_ROWS_PER_SLICE), THREADS_PER_BLOCK>>>( //dim3(THREADS_PER_BLOCK/4, 4)>>>(
+        // cerr << divideAndCeil(this->num_rows, NUM_ROWS_PER_SLICE) << endl;
+    	sliced_coo_kernel_32<T, THREADS_PER_BLOCK, NUM_ROWS_PER_SLICE, LANE_SIZE> <<<divideAndCeil(this->num_rows, NUM_ROWS_PER_SLICE), THREADS_PER_BLOCK, 0, t>>>( //dim3(THREADS_PER_BLOCK/4, 4)>>>(
 						this->num_rows,
 						divideAndCeil(this->num_rows, NUM_ROWS_PER_SLICE),
 						thrust::raw_pointer_cast(&this->dv_col[0]),

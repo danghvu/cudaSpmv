@@ -11,7 +11,7 @@
 #include "params_parser.h"
 
 struct Parameter{
-	std::string balancingFile;
+	std::string vectorFile;
 	std::string matrixFile;
 	std::string wdir;
     std::string datatype;

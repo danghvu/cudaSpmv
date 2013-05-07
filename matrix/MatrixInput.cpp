@@ -49,12 +49,11 @@ MMFormatInput::MMFormatInput(std::ifstream &in, std::vector<uint32_t> &permIn) :
     this->numCols = nc;
 
     if (perm.size() == 0) {
-        perm.reserve( max(numRows, numCols) );
+        perm.resize( max(numRows, numCols) );
         for (int i=0; i<perm.size(); i++) {
             perm[i] = i;
         }
     }
-
 }
 
 void MMFormatInput::readIt(){
@@ -173,14 +172,19 @@ int __main(int argc, char **args){
     }
     char *filename = args[1];
 
-    vector<uint32_t> perm;
- 
     ifstream fst(filename);
+    vector<uint32_t> perm;
     MMFormatInput f( fst , perm ) ;
-    cerr << f.getNumRows() << endl;
+    perm[0] = 2;
+    perm[1] = 1;
+    perm[2] = 0;
+    perm[3] = 3;
+
+    int n_rows = f.getNumRows();
+    cerr << n_rows << endl;
 
     uint32_t total = 0;
-    for (int i=0;i<f.getNumRows();i++){ 
+    for (int i=0;i<n_rows;i++){ 
         uint32_t length;
         f >> length;
         cout << length;
@@ -188,9 +192,9 @@ int __main(int argc, char **args){
             uint32_t c;
             double value;
             f >> c;
-            f >> value;
+            value = f.getValue();
             total++;
-            cout << " " << c ;
+            cout << " " << c;
         }
         cout << endl;
     }

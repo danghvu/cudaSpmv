@@ -19,7 +19,7 @@
 	texture<uint4> tex_l4;
 	texture<uint32_t> tex_l;
     texture<float> tex_f;
-    texture<int2> tex_d;
+    texture<int2, 1> tex_d;
 	texture<uint32_t> tex_Ap;
 
 	__inline__ __device__ uint64_t fetch_x(const uint32_t &i, const uint64_t * x)

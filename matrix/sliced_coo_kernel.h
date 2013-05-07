@@ -16,7 +16,7 @@ sliced_coo_kernel_32(
                 const uint16_t * rows, 
                 const ValueType * V,
                 const uint32_t * offsets,
-                const ValueType * x,
+                const ValueType * __restrict x,
                       ValueType * y)
 {
     const int thread_lane = threadIdx.x & (LANE_SIZE-1);
@@ -29,26 +29,36 @@ sliced_coo_kernel_32(
 
     const uint32_t begin = offsets[packNo];
     const uint32_t end = offsets[packNo+1];
-    for(int i=row_lane; i<limit; i+=THREADS_PER_BLOCK/LANE_SIZE){
-        sdata[i][thread_lane] = 0;
+    int index;
+
+    for(index=row_lane; index<limit; index+=THREADS_PER_BLOCK/LANE_SIZE){
+        sdata[index][thread_lane] = 0;
     }
     
     __syncthreads();
 
-    for(int32_t index=begin+threadIdx.x; index<end; index+=THREADS_PER_BLOCK){
+    for(index=begin+threadIdx.x; index<end; index+=THREADS_PER_BLOCK){
         const uint32_t col = cols[index];
         const uint16_t row = rows[index];
         const ValueType value = V[index];
 
+#if __CUDA_ARCH__ >= 300 and 0
+        const ValueType input = x[col] * value; //try to use constant cache
+#else 
+    #if __CUDA_ARCH__ >= 100
+        #warning "use texture"
+    #endif
         const ValueType input = fetch_x(col, x) * value;
+#endif
         atomic_add(&sdata[row][thread_lane], input);
+        //atomic_add(&sdata[row][thread_lane], input);
     }
 
     __syncthreads();
 
-    for (uint32_t i=row_lane; i<limit; i+=THREADS_PER_BLOCK/LANE_SIZE) { 
-        volatile ValueType *psdata = sdata[i];
-        int tid = (thread_lane+i) & (LANE_SIZE - 1);
+    for (index=row_lane; index<limit; index+=THREADS_PER_BLOCK/LANE_SIZE) { 
+        volatile ValueType *psdata = sdata[index];
+        int tid = (thread_lane+index) & (LANE_SIZE - 1);
 
         if (LANE_SIZE>128 && thread_lane<128) psdata[tid]+=psdata[(tid+128) & (LANE_SIZE-1)]; __syncthreads();
         if (LANE_SIZE>64 && thread_lane<64) psdata[tid]+=psdata[(tid+64) & (LANE_SIZE-1)]; __syncthreads();
@@ -64,8 +74,8 @@ sliced_coo_kernel_32(
     __syncthreads();
     const uint32_t actualRow = packNo * NUM_ROWS_PER_SLICE;
 
-    for(int r = threadIdx.x; r < limit; r+=THREADS_PER_BLOCK){
-        y[actualRow+r] = sdata[r][thread_lane];
+    for(index = threadIdx.x; index < limit; index+=THREADS_PER_BLOCK){
+        y[actualRow+index] = sdata[index][thread_lane];
     }
 }
 #endif /* SLICED_COO_KERNEL_H_ */

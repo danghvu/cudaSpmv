@@ -45,8 +45,6 @@ struct Result {
     }
 };
 
-const uint32_t FORMATS_LEN = 9;
-const uint32_t LOOK_AHEAD = 9;
 const uint32_t NTIMES = 10;
 const string FORMATS[] = { // matrix_factory::BIT_BLOCK,  
                             matrix_factory::SLICED_COO_256,	
@@ -59,6 +57,8 @@ const string FORMATS[] = { // matrix_factory::BIT_BLOCK,
                             matrix_factory::SLICED_COO_2,
                             matrix_factory::SLICED_COO_1,
                         };
+
+uint32_t FORMATS_LEN = (sizeof(FORMATS) / sizeof(FORMATS[0]));
 
 
 struct CutOffFinderOutput {
@@ -80,12 +80,19 @@ class CutOffFinder {
         vector<uint32_t> prefsum;
 
         CutOffFinderOutput output;
+    
+        vector<Matrix<ValueType> *> mfh;
 
         thrust::device_vector<ValueType> g_input, g_output;
-    
+
+        bool sortcol;
+        void test();
+
     public:
         
-        CutOffFinder( MMFormatInput &f ): mf(f), mat(f.data) {
+        CutOffFinder( MMFormatInput &f, bool sortcol ): mf(f), mat(f.data) {
+
+            this->sortcol = sortcol;
         
             prefsum.resize( mat.num_rows, 0 );
             prefsum[ mf.perm[0] ] = mat.row_offsets[ mf.perm[0] + 1 ] - mat.row_offsets[ mf.perm[0] ];
@@ -103,8 +110,10 @@ class CutOffFinder {
         void execute(bool verbose);
         void balance( const CutOffFinderOutput &cutOffOutput,  uint32_t numProcs,  vector<uint32_t> &permutation);
 
-        void printResult(char *filename);
-        void writeCache(char *filename);
+        void printResult(string filename);
+        void writeCache(string filename);
+
+        double alpha;
 };
 
 template<class T>
@@ -112,6 +121,8 @@ Result CutOffFinder<T>::getPerformance_trial(const string &fmt, uint32_t current
     uint32_t numProcs = getNumMultiprocessors();
     Matrix<T>* bm = matrix_factory::getMatrixObject<T>(fmt);
     bm->set_num_cols(mat.num_cols);
+
+    bm->set_sort_col(sortcol);
 
     Result result;
     if (fmt.rfind("scoo") != string::npos) {
@@ -122,14 +133,14 @@ Result CutOffFinder<T>::getPerformance_trial(const string &fmt, uint32_t current
         bm->set_num_rows(minRows);
         BalancedMatrix balM(mat, mf.perm, currentRow, minRows, numProcs, bm->granularity());
         VectorOfVectorMatrixInput vmi(balM.matrix, balM.permutation);
-        bm->readMatrix(vmi);
+        bm->readMatrix(vmi, new_perm);
     } else { // this is not for scoo
         uint32_t minRows = bm->granularity() * numProcs * 32;
         if (mat.num_rows - currentRow < minRows)
             minRows = mat.num_rows - currentRow;
         bm->set_num_rows(minRows);
         VectorOfVectorMatrixInput vmi(mat, mf.perm, bm->get_num_rows(), currentRow);
-        bm->readMatrix(vmi);
+        bm->readMatrix(vmi,new_perm);
     }
 
     bm->transferToDevice();
@@ -169,6 +180,8 @@ void CutOffFinder<T>::execute_trial( bool verbose) {
 
     uint32_t currentRow = 0;
     vector<Result> resultVector;
+
+    int LOOK_AHEAD = FORMATS_LEN - 2;
 
     for (uint32_t i = 0; i < FORMATS_LEN - 1;) {
         cout << "Getting result for " << FORMATS[i] << endl;
@@ -288,7 +301,9 @@ Result CutOffFinder<T>::getPerformance(const string &fmt, uint32_t currentRow) {
     if (currentRow > 0) 
         nnz -= prefsum[ mf.perm[currentRow - 1] ];
 
-    result.avgDist = ( nnz / ((double) SHARED_MEMORY_SIZE / sizeof(T)) / numProcs );
+//    cerr << nnz << " " << SHARED_MEMORY_SIZE << " " << sizeof(T) << " " << numProcs << endl;
+
+    result.avgDist =  (nnz*1.0/minRows) / ( SHARED_MEMORY_SIZE*1.0 / bm->granularity() / sizeof(T) ); // ( nnz / ((double) SHARED_MEMORY_SIZE / sizeof(T)) / numProcs );
     result.format = fmt;
     result.nnz = nnz; 
     result.ntimes = NTIMES;
@@ -308,34 +323,37 @@ void CutOffFinder<T>::execute (bool verbose) {
     
     this->numProcs = getNumMultiprocessors();
 
-    double min_rows_per_shared = (double) mat.num_entries / (double) mat.num_rows;
-    double max_rows_per_shared = 2 * min_rows_per_shared;
+    double min_per_shared = alpha;
+    double max_per_shared = alpha*2;
 
     if (verbose) cerr << "MIN_ROWS_PER_SHARED: " << min_rows_per_shared << endl;
     if (verbose) cerr << "MAX_ROWS_PER_SHARED: " << max_rows_per_shared << endl;
 
     for (uint32_t i = 0; i < FORMATS_LEN - 1;) {
 
-        Result result = getPerformance("sle", currentRow);
-
-        if (!result.avgDist) {
-
         if (verbose) cerr << "Getting result for " << FORMATS[i] << endl;        
 
-        result = getPerformance(FORMATS[i], currentRow);
+        Result result = getPerformance(FORMATS[i], currentRow);
      
         if (verbose) cerr << "Evaluate " << result.toString() << endl;
-        if (result.avgDist < max_rows_per_shared)
+ 
+        if (result.avgDist < min_per_shared)       
         for (uint32_t j = i + 1; j < FORMATS_LEN; j++) {
             Result comp = getPerformance(FORMATS[j], currentRow);
             if (verbose) cerr << comp.toString() << endl;
-            if (comp.avgDist > max_rows_per_shared && result.avgDist > min_rows_per_shared) break;
-            if (comp.avgDist > result.avgDist) {
+            if (result.avgDist < min_per_shared){
+                result = comp;
+                i = j;
+                continue;
+            }
+
+            if (comp.avgDist >= min_per_shared && comp.avgDist <= max_per_shared) {
                 result = comp;
                 i=j;
             }
-        }
-
+            else if (comp.avgDist > max_per_shared) {
+                break;
+            }
         }
         if (verbose) cerr << "Chosen: " << result.toString() << endl;
         resultVector.push_back(result);
@@ -388,7 +406,7 @@ void CutOffFinder<T>::balance(
 
 // for each horizontal split 
         uint32_t curOffset = 0;
-//      cout << "Base row: " << baseRow << endl;
+        // cout << "Base row: " << baseRow << endl;
         for(uint32_t i=0; i<cutOffOutput.formats.size(); i++){
             if(cutOffOutput.formats[i].rfind("scoo") != string::npos){
                 int numProcss = numProcs;
@@ -433,28 +451,23 @@ void CutOffFinder<T>::balance(
 }
 
 template <class T>
-void CutOffFinder<T>::printResult(char * mfile) { 
+void CutOffFinder<T>::printResult(string mfile) { 
     cerr << " printResult ... " ;
 //    uint32_t maxRowsPerFormat = 10e8;
 
     char outfile[255];
 
-    sprintf(outfile, FORMAT_PERM, mfile);
+    sprintf(outfile, FORMAT_PERM, mfile.c_str());
     ofstream permout( outfile );
     DataOutputStream out2(permout);
     out2.writeVector( new_perm );
     permout.close();
 
-    sprintf(outfile, FORMAT_OUTPUT, mfile);
+    sprintf(outfile, FORMAT_OUTPUT, mfile.c_str());
     
     ofstream out;
     out.open(outfile);
     out.exceptions(ios::failbit | ios::badbit);
-
-//    out << new_perm.size() ;
-//    for (int i=0; i<new_perm.size();i++)
-//        out << " " << new_perm[i];
-//    out << endl;
 
     for (int i=1; i<output.formats.size(); ) {
         if (output.formats[i] == output.formats[i-1]){
@@ -479,21 +492,53 @@ void CutOffFinder<T>::printResult(char * mfile) {
     cerr << " OK " << endl;
 }
 
+template<class T>
+void CutOffFinder<T>::test(){
+    g_input.resize(max(mat.num_rows, mat.num_cols),1);
+    g_output.resize(max(mat.num_rows, mat.num_cols),0);
+
+    T* v = thrust::raw_pointer_cast(&g_input[0]);
+	T* r = thrust::raw_pointer_cast(&g_output[0]);
+
+    Timer overall;
+    overall.start();
+	for(uint32_t i=0; i<10; i++){
+		uint32_t cur_row = 0;
+		for(uint32_t j=0; j<mfh.size(); j++){
+            mfh[j]->multiply(v, r+cur_row);
+			cur_row += mfh[j]->get_num_rows();
+		}
+//        checkCUDAError("kernel call");
+        cudaDeviceSynchronize();
+        checkCUDAError("kernel call");
+
+        swap(v,r);
+	}
+  
+    cudaDeviceSynchronize();
+    checkCUDAError("kernel finish");
+
+    double totalTime = overall.stop(); 
+    cerr << totalTime/10 << endl;
+}
+
 template <class T>
-void CutOffFinder<T>::writeCache(char* output_path){
+void CutOffFinder<T>::writeCache(string output_path){
     cerr << " writing cache ... ";
     uint32_t currentRow = 0;
 
     output.startRows.push_back(mat.num_rows);
     mf.perm = new_perm;  
 
+    
     for(int i=0; i<output.startRows.size()-1; i++){
         Matrix<T> *bm = matrix_factory::getMatrixObject<T>(output.formats[i]);
         bm->set_num_cols(mat.num_cols);
         bm->set_num_rows(output.startRows[i+1] - output.startRows[i]);
+        bm->set_sort_col(sortcol);
 
         cerr << "Building cache for " << output.formats[i] << endl;
-        bm->readMatrix(mf);
+        bm->readMatrix(mf, new_perm);
         stringstream cacheOutput;
         cacheOutput << output_path << "-" << currentRow << bm->getCacheName();
         cerr << "Writing cache to " << cacheOutput.str() << endl;
@@ -501,10 +546,11 @@ void CutOffFinder<T>::writeCache(char* output_path){
         out.exceptions(ios_base::failbit | ios_base::badbit);
         bm->buildCache(out);
         out.close();
-
+        bm->transferToDevice();
         currentRow += bm->get_num_rows();
-        delete bm;
+        mfh.push_back(bm);
     }
     cerr << " OK " << endl;
+    test();
 }
 #endif 

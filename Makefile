@@ -11,7 +11,7 @@ CC_FLAGS = -O2 -I$(CUDA_INCLUDE) -I$(CUSP)
 
 COMMON = -O2 -arch=sm_20 --ptxas-options="--maxrregcount=32" $(OBJ_FILES) -I$(CUDA_INCLUDE) -I$(CUSP)
 
-all: spmv prep
+all: spmv prep cusp
 
 spmv: main.cu Makefile $(OBJ_FILES)
 	$(NVCC) $(COMMON) main.cu -o spmv

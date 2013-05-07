@@ -62,9 +62,9 @@ MatrixInput& MMFormatInput::operator>>(uint32_t &output) {
     if (!already_read) readIt();
 
     if(curIndex<0){
-        output = data.row_offsets[perm[curRow] + 1] - data.row_offsets[perm[curRow]];
+        output = getNz(perm[curRow]);
         curIndex++;
-    } else if(curIndex>=data.row_offsets[perm[curRow] + 1] - data.row_offsets[perm[curRow]]){
+    } else if(curIndex>=getNz(perm[curRow])){
         curRow++;
         curIndex = -1;
         return (*this >> output);

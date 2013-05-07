@@ -132,41 +132,9 @@ template<class T>
 Result CutOffFinder<T>::getPerformance(const string &fmt, uint32_t currentRow) {
 
     Result result;
-    if (fmt.rfind("scoo")==string::npos) {
-        //sle
-        Matrix<T>* bm = matrix_factory::getMatrixObject<T>(fmt);
-        uint32_t minRows = bm->granularity();
-        if (mat.num_rows - currentRow < minRows) 
-            minRows = mat.num_rows - currentRow;
-
-        double diff = 0;
-        int prevl;
-        int nnz=0;
-        for (int i=0; i<minRows;i++){
-            int l = getCSRNumRows( mat , mf.perm[currentRow + i] );
-            nnz += l;
-            if (i>0) diff += (prevl - l);
-            prevl = l;
-        } 
-        diff /= (minRows - 1);
-        if (diff <= 8)
-            result.avgDist = 1;
-        else 
-            result.avgDist = 0;
-        result.format =fmt;
-        result.nnz = nnz;
-        result.startingRow = currentRow;
-        result.numRows = minRows;
-        result.rowsPerSlice = minRows;    
-        return result;
-    }
-
     Matrix<T>* bm = matrix_factory::getMatrixObject<T>(fmt);
-
     int numProcs = this->numProcs;
-
     uint32_t minRows = bm->granularity() * numProcs;
-
 
     if (mat.num_rows - currentRow < minRows) {
         minRows = mat.num_rows - currentRow;
@@ -369,8 +337,8 @@ void CutOffFinder<T>::test(){
     g_input.resize(max(mat.num_rows, mat.num_cols),1);
     g_output.resize(max(mat.num_rows, mat.num_cols),0);
 
-    T* v = thrust::raw_pointer_cast(&g_input[0]);
-    T* r = thrust::raw_pointer_cast(&g_output[0]);
+    T* v = p(g_input);
+    T* r = p(g_output);
 
     uint32_t cur_row = 0;
     for(uint32_t j=0; j<mfh.size(); j++){

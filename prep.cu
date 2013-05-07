@@ -90,6 +90,7 @@ int main(int argc, char* argv[]){
 			cout << "Changing working directory to " << app.wdir << endl;
 			int r = chdir(app.wdir.c_str());
 		}
+        cout << "Input data .." << endl;
         filename = getFileName(app.matrixFile);
         ifstream inf(app.matrixFile.c_str());
         vector<uint32_t> tempperm;

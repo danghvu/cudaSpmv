@@ -49,7 +49,7 @@ class MMFormatInput : public MatrixInput {
         MatrixInput& operator >>(uint32_t &output);
         MatrixInput& operator >>(double &output);
 
-        uint32_t getNz(int r) {
+        uint32_t getNz(uint32_t r) {
             return data.row_offsets[r+1] - data.row_offsets[r];
         }
 

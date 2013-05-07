@@ -171,8 +171,8 @@ void execute(){
         nnz += mfh.vec[i]->nonZeroes();
     }
 
-    T* v = thrust::raw_pointer_cast(&dv[0][0]);
-    T* r = thrust::raw_pointer_cast(&dv[1][0]);
+    T* v = p(dv[0]);
+    T* r = p(dv[1]);
 
     cudaStream_t streams[mfh.vec.size()];
     for (int j=0; j<mfh.vec.size(); j++) {
@@ -300,6 +300,7 @@ int main(int argc, char* argv[]){
             cout << "Changing working directory to " << app.wdir << endl;
             int r = chdir(app.wdir.c_str());
         }
+        cout << "Input data .. " << endl;
 
         app.vectorFile = app.vectorFile;
         readInfo();

@@ -12,6 +12,7 @@
 #include <vector>
 #include <string>
 
+#define p(d) thrust::raw_pointer_cast(&(d)[0])
 static const uint32_t SHARED_MEMORY_SIZE = 48 * 1024;
 static const uint32_t WARP_SIZE = 32;
 

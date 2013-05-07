@@ -157,19 +157,17 @@ void SlicedCoo<T, LANE_SIZE>::readMatrix(MatrixInput &in, vector<uint32_t> &perm
 
 template<typename T, const uint32_t LANE_SIZE>
 void SlicedCoo<T, LANE_SIZE>::multiply(const T *v, T *r, cudaStream_t t){
-    //	static const uint32_t NUM_BLOCKS = getNumMultiprocessors();
     bind_x(v);
-    // cerr << divideAndCeil(this->num_rows, NUM_ROWS_PER_SLICE) << endl;
-    sliced_coo_kernel_32<T, THREADS_PER_BLOCK, NUM_ROWS_PER_SLICE, LANE_SIZE> <<<divideAndCeil(this->num_rows, NUM_ROWS_PER_SLICE), THREADS_PER_BLOCK, 0, t>>>( //dim3(THREADS_PER_BLOCK/4, 4)>>>(
+    sliced_coo_kernel_32<T, THREADS_PER_BLOCK, NUM_ROWS_PER_SLICE, LANE_SIZE> <<<divideAndCeil(this->num_rows, NUM_ROWS_PER_SLICE), THREADS_PER_BLOCK, 0, t>>>(
         this->num_rows,
         divideAndCeil(this->num_rows, NUM_ROWS_PER_SLICE),
-        thrust::raw_pointer_cast(&this->dv_col[0]),
-        thrust::raw_pointer_cast(&this->dv_row[0]),
-        thrust::raw_pointer_cast(&this->dv_value[0]),
-        thrust::raw_pointer_cast(&this->dv_offsets[0]),
+        p(this->dv_col),
+        p(this->dv_row),
+        p(this->dv_value),
+        p(this->dv_offsets),
         v,
         r);
-            unbind_x(v);
-            }
+    unbind_x(v);
+}
 
 #endif /* SLICED_COO_H_ */

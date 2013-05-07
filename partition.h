@@ -393,7 +393,7 @@ void CutOffFinder<T>::writeCache(string output_path){
         currentRow += bm->get_num_rows();
         mfh.push_back(bm);
     }
-    
+
     cout << "Testing 1 iteration ... " ;
     test();
     cout << " All OK." << endl;

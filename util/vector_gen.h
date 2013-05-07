@@ -27,7 +27,7 @@ float myRandom<float>() {
 
 template <>
 double myRandom<double>() {
-     return (double)rand()/(double)RAND_MAX;
+    return (double)rand()/(double)RAND_MAX;
 }
 
 template <>
@@ -47,7 +47,7 @@ Int256 myRandom<Int256>(){
 
 template <class T>
 void generateVector(vector<T> &vec, uint32_t vlen){
-	vec.reserve(vlen);
+    vec.reserve(vlen);
     for(int i=0; i<vlen; i++){
         T random = myRandom<T>();
         vec.push_back(random);
@@ -56,7 +56,7 @@ void generateVector(vector<T> &vec, uint32_t vlen){
 
 template <class T>
 void generateVector(thrust::host_vector<T> &vec, uint32_t vlen){
-	vec.reserve(vlen);
+    vec.reserve(vlen);
     for(int i=0; i<vlen; i++){
         T random = myRandom<T>();
         vec.push_back(random);

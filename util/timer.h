@@ -3,12 +3,12 @@
 #include <sys/time.h>
 
 struct Timer{
-        Timer() {} ;
-        void start();
-        double stop();
-    
-        struct timeval now;
-        struct timeval then;
+    Timer() {} ;
+    void start();
+    double stop();
+
+    struct timeval now;
+    struct timeval then;
 };
 
 inline void Timer::start() {

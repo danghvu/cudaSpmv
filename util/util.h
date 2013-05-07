@@ -32,8 +32,8 @@ inline uint32_t divideAndCeil(uint32_t what, uint32_t divisor){
 uint32_t getNumMultiprocessors(){
     cudaDeviceProp deviceProp;
     int id=0; cudaGetDevice(&id);
-        cudaGetDeviceProperties(&deviceProp, id);
-//		return thrust::detail::device::cuda::arch::num_multiprocessors();
+    cudaGetDeviceProperties(&deviceProp, id);
+    //		return thrust::detail::device::cuda::arch::num_multiprocessors();
     return deviceProp.multiProcessorCount;
 }
 

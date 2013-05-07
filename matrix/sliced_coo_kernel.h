@@ -8,24 +8,24 @@
 #include "../util/xor.h"
 
 template <typename ValueType, const uint32_t THREADS_PER_BLOCK, const uint32_t NUM_ROWS_PER_SLICE, const uint32_t LANE_SIZE>
-__global__ void
+    __global__ void
 sliced_coo_kernel_32(
-				const uint32_t num_rows,
-                const uint32_t numPacks,
-                const uint32_t * cols,
-                const uint16_t * rows, 
-                const ValueType * V,
-                const uint32_t * offsets,
-                const ValueType * __restrict x,
-                      ValueType * y)
+        const uint32_t num_rows,
+        const uint32_t numPacks,
+        const uint32_t * cols,
+        const uint16_t * rows, 
+        const ValueType * V,
+        const uint32_t * offsets,
+        const ValueType * __restrict x,
+        ValueType * y)
 {
     const int thread_lane = threadIdx.x & (LANE_SIZE-1);
     const int row_lane = threadIdx.x/(LANE_SIZE);
- 
+
     __shared__ ValueType sdata[NUM_ROWS_PER_SLICE][LANE_SIZE];
-    
+
     const uint32_t packNo=blockIdx.x;
-	const uint32_t limit = ( (packNo==numPacks-1)?((num_rows-1)%NUM_ROWS_PER_SLICE)+1:NUM_ROWS_PER_SLICE );
+    const uint32_t limit = ( (packNo==numPacks-1)?((num_rows-1)%NUM_ROWS_PER_SLICE)+1:NUM_ROWS_PER_SLICE );
 
     const uint32_t begin = offsets[packNo];
     const uint32_t end = offsets[packNo+1];
@@ -34,7 +34,7 @@ sliced_coo_kernel_32(
     for(index=row_lane; index<limit; index+=THREADS_PER_BLOCK/LANE_SIZE){
         sdata[index][thread_lane] = 0;
     }
-    
+
     __syncthreads();
 
     for(index=begin+threadIdx.x; index<end; index+=THREADS_PER_BLOCK){
@@ -45,9 +45,9 @@ sliced_coo_kernel_32(
 #if __CUDA_ARCH__ >= 300 and 0
         const ValueType input = x[col] * value; //try to use constant cache
 #else 
-    #if __CUDA_ARCH__ >= 100
-        #warning "use texture"
-    #endif
+#if __CUDA_ARCH__ >= 100
+#warning "use texture"
+#endif
         const ValueType input = fetch_x(col, x) * value;
 #endif
         atomic_add(&sdata[row][thread_lane], input);
@@ -63,7 +63,7 @@ sliced_coo_kernel_32(
         if (LANE_SIZE>128 && thread_lane<128) psdata[tid]+=psdata[(tid+128) & (LANE_SIZE-1)]; __syncthreads();
         if (LANE_SIZE>64 && thread_lane<64) psdata[tid]+=psdata[(tid+64) & (LANE_SIZE-1)]; __syncthreads();
         if (LANE_SIZE>32 && thread_lane<32) psdata[tid]+=psdata[(tid+32) & (LANE_SIZE-1)]; __syncthreads();
-        
+
         if (LANE_SIZE>16 && thread_lane<16) psdata[tid]+=psdata[( tid+16 ) & (LANE_SIZE-1)];
         if (LANE_SIZE>8 && thread_lane<8) psdata[tid]+=psdata[( tid+8 ) & (LANE_SIZE-1)];
         if (LANE_SIZE>4 && thread_lane<4) psdata[tid]+=psdata[( tid+4 ) & (LANE_SIZE-1)];

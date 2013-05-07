@@ -34,7 +34,7 @@ class Matrix{
 
         void setStat( double v ) { ss = v; };
         double getStat() { return ss; };
-        
+
         virtual void transferToDevice() = 0;
 
     protected:

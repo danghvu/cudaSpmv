@@ -11,16 +11,16 @@
 #include "params_parser.h"
 
 struct Parameter{
-	std::string vectorFile;
-	std::string matrixFile;
-	std::string wdir;
+    std::string vectorFile;
+    std::string matrixFile;
+    std::string wdir;
     std::string datatype;
     int gpu;
 
-	Parameter();
+    Parameter();
 
-	void init(Params &params);
-	std::string toString();
+    void init(Params &params);
+    std::string toString();
 };
 
 #endif /* PARAMETERS_H_ */

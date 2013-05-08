@@ -6,7 +6,9 @@ CUDA Sparse-Matrix Vector Multiplication using the Sliced Coordinate format
 
 `spmv`: perform spmv with prepared files from `prep`
 
-Sample usages: 
+`cusp`: SpMV using cusp library matrix formats
+
+Usage examples:
 ------------------
 
     ./prep matrix=./samples/test.mtx datatype=float

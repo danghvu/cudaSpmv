@@ -1,6 +1,6 @@
 cudaSpmv
 ========
-CUDA Sparse-Matrix Vector Multiplication using the Sliced Coordinate format
+CUDA Sparse-Matrix Vector Multiplication using the Sliced Coordinate format (and others in cusp)
 
 `prep`: to partition the input matrix, store the partitioned matrix in binary for faster access
 
@@ -30,4 +30,20 @@ Optional:
  - `times`: number of SpMV iterations, default is `1`, if more than `1` `sortcol` should be enabled to ensure the same result at the end
  - `sortcol`: `0|1` set as `1` to permute columns the same as rows (only useful in `prep`), default is 0
  - `sortrow`: `0|1` set as `1` force sorting rows, default is 0, however will still sort if rows weights differ by *a lot* (only useful in `prep`)
+ 
+ If you use this software for a publication, please cite:
+ https://dl.acm.org/citation.cfm?id=2562941
+ 
+ ```
+ @article{dang2013cuda,
+  title={{CUDA}-enabled Sparse Matrix--Vector Multiplication on {GPUs} using atomic operations},
+  author={Dang, Hoang-Vu and Schmidt, Bertil},
+  journal={Parallel Computing},
+  volume={39},
+  number={11},
+  pages={737--750},
+  year={2013},
+  publisher={Elsevier}
+}
+```
 
